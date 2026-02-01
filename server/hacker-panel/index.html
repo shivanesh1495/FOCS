@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hacker Simulator - Security Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0a0a0a;
+      color: #00ff00;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      padding: 20px;
+      border: 2px solid #ff0000;
+      margin-bottom: 20px;
+      background: #1a0000;
+    }
+    .header h1 { color: #ff0000; font-size: 2em; }
+    .header p { color: #ff6666; margin-top: 10px; }
+    
+    .container { display: flex; gap: 20px; flex-wrap: wrap; }
+    
+    .panel {
+      flex: 1;
+      min-width: 300px;
+      border: 1px solid #333;
+      padding: 15px;
+      background: #111;
+    }
+    .panel h2 {
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+    .panel.confidentiality h2 { color: #00ffff; }
+    .panel.integrity h2 { color: #ffff00; }
+    .panel.availability h2 { color: #ff00ff; }
+    
+    .file-list { max-height: 200px; overflow-y: auto; margin-bottom: 15px; }
+    .file-item {
+      padding: 8px;
+      margin: 5px 0;
+      background: #1a1a1a;
+      border-left: 3px solid #333;
+      cursor: pointer;
+    }
+    .file-item:hover { background: #2a2a2a; border-left-color: #00ff00; }
+    .file-item.selected { border-left-color: #ff0000; background: #2a1a1a; }
+    
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+    }
+    .btn-spy { background: #00ffff; color: #000; }
+    .btn-tamper { background: #ffff00; color: #000; }
+    .btn-delete { background: #ff00ff; color: #000; }
+    .btn-danger { background: #ff0000; color: #fff; }
+    
+    .log {
+      background: #000;
+      border: 1px solid #333;
+      padding: 10px;
+      height: 300px;
+      overflow-y: auto;
+      font-size: 0.85em;
+    }
+    .log-entry { margin: 5px 0; padding: 5px; border-left: 3px solid #333; }
+    .log-entry.confidentiality { border-left-color: #00ffff; }
+    .log-entry.integrity { border-left-color: #ffff00; }
+    .log-entry.availability { border-left-color: #ff00ff; }
+    .log-entry.success { color: #00ff00; }
+    .log-entry.error { color: #ff0000; }
+    
+    .result-box {
+      background: #1a1a1a;
+      border: 1px solid #444;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 0.8em;
+      max-height: 150px;
+      overflow-y: auto;
+      word-break: break-all;
+    }
+    
+    .warning {
+      background: #330000;
+      border: 2px solid #ff0000;
+      padding: 15px;
+      margin: 20px 0;
+      text-align: center;
+      color: #ff6666;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>HACKER SIMULATOR</h1>
+    <p>Security Attack Demonstration Panel - FOR EDUCATIONAL PURPOSES ONLY</p>
+  </div>
+
+  <div class="warning">
+    This panel demonstrates the CIA Triad: <strong>Confidentiality</strong>, <strong>Integrity</strong>, and <strong>Availability</strong> attacks.
+    After running an attack, verify its effect on the legitimate system at <a href="http://localhost:5173" style="color:#00ff00">localhost:5173</a>
+  </div>
+
+  <div class="container">
+    <!-- CONFIDENTIALITY PANEL -->
+    <div class="panel confidentiality">
+      <h2>CONFIDENTIALITY ATTACK</h2>
+      <p style="font-size:0.8em; margin-bottom:10px;">View encrypted data that should be secret</p>
+      
+      <div class="file-list" id="conf-files"></div>
+      
+      <button class="btn-spy" onclick="spyOnFile()">VIEW ENCRYPTED DATA</button>
+      
+      <div class="result-box" id="conf-result"></div>
+    </div>
+
+    <!-- INTEGRITY PANEL -->
+    <div class="panel integrity">
+      <h2>INTEGRITY ATTACK</h2>
+      <p style="font-size:0.8em; margin-bottom:10px;">Tamper with file hashes and signatures</p>
+      
+      <div class="file-list" id="int-files"></div>
+      
+      <button class="btn-tamper" onclick="tamperHash()">TAMPER HASH</button>
+      <button class="btn-tamper" onclick="tamperSignature()">TAMPER SIGNATURE</button>
+      <button class="btn-danger" onclick="corruptFile()">CORRUPT FILE</button>
+      
+      <div class="result-box" id="int-result"></div>
+    </div>
+
+    <!-- AVAILABILITY PANEL -->
+    <div class="panel availability">
+      <h2>AVAILABILITY ATTACK</h2>
+      <p style="font-size:0.8em; margin-bottom:10px;">Delete files to deny access</p>
+      
+      <div class="file-list" id="avail-files"></div>
+      
+      <button class="btn-delete" onclick="deleteEncrypted()">DELETE ENCRYPTED FILE</button>
+      <button class="btn-danger" onclick="deleteComplete()">DELETE COMPLETELY</button>
+      
+      <div class="result-box" id="avail-result"></div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:20px; color:#ff0000;">ATTACK LOG</h2>
+  <div class="log" id="attack-log">
+    <div class="log-entry">[SYSTEM] Hacker panel initialized. Select a file to attack.</div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:5001/api';
+    let selectedFile = null;
+
+    // Load files on startup
+    async function loadFiles() {
+      try {
+        const res = await fetch(`${API}/spy/files`);
+        const files = await res.json();
+        
+        const html = files.map(f => `
+          <div class="file-item" onclick="selectFile('${f._id}', '${f.originalName}')" id="file-${f._id}">
+            ${f.originalName} <span style="color:#666">(${f.uploadedBy?.username || 'unknown'})</span>
+          </div>
+        `).join('');
+        
+        document.getElementById('conf-files').innerHTML = html;
+        document.getElementById('int-files').innerHTML = html;
+        document.getElementById('avail-files').innerHTML = html;
+        
+        addLog('Loaded ' + files.length + ' files from target database', 'success');
+      } catch (err) {
+        addLog('Failed to load files: ' + err.message, 'error');
+      }
+    }
+
+    function selectFile(id, name) {
+      selectedFile = { id, name };
+      document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+      document.querySelectorAll(`#file-${id}`).forEach(el => el.classList.add('selected'));
+      addLog(`Selected target: ${name}`);
+    }
+
+    function addLog(message, type = '') {
+      const log = document.getElementById('attack-log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // CONFIDENTIALITY ATTACK
+    async function spyOnFile() {
+      if (!selectedFile) { alert('Select a file first!'); return; }
+      
+      try {
+        const res = await fetch(`${API}/attack/view-encrypted/${selectedFile.id}`);
+        const data = await res.json();
+        
+        document.getElementById('conf-result').innerHTML = `
+          <strong>${data.attack}</strong><br>
+          File: ${data.filename}<br>
+          Encrypted Hex: ${data.encryptedHex}<br><br>
+          <strong>AES Key (RSA encrypted):</strong><br>
+          ${data.encryptedAESKey?.substring(0, 100)}...<br><br>
+          <strong>Note:</strong> ${data.note}
+        `;
+        
+        addLog(`[CONFIDENTIALITY] Viewed encrypted data of "${selectedFile.name}" - PROTECTED BY ENCRYPTION`, 'confidentiality');
+      } catch (err) {
+        addLog('Attack failed: ' + err.message, 'error');
+      }
+    }
+
+    // INTEGRITY ATTACKS
+    async function tamperHash() {
+      if (!selectedFile) { alert('Select a file first!'); return; }
+      
+      try {
+        const res = await fetch(`${API}/attack/tamper-hash/${selectedFile.id}`, { method: 'POST' });
+        const data = await res.json();
+        
+        document.getElementById('int-result').innerHTML = `
+          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
+          Original Hash: ${data.originalHash?.substring(0, 20)}...<br>
+          Tampered Hash: ${data.tamperedHash?.substring(0, 20)}...<br><br>
+          <strong>Result:</strong> ${data.result}
+        `;
+        
+        addLog(`[INTEGRITY] Tampered hash of "${selectedFile.name}" - VERIFY ON MAIN SYSTEM!`, 'integrity');
+      } catch (err) {
+        addLog('Attack failed: ' + err.message, 'error');
+      }
+    }
+
+    async function tamperSignature() {
+      if (!selectedFile) { alert('Select a file first!'); return; }
+      
+      try {
+        const res = await fetch(`${API}/attack/tamper-signature/${selectedFile.id}`, { method: 'POST' });
+        const data = await res.json();
+        
+        document.getElementById('int-result').innerHTML = `
+          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
+          Original Sig: ${data.originalSignature}<br>
+          Tampered Sig: ${data.tamperedSignature}<br><br>
+          <strong>Result:</strong> ${data.result}
+        `;
+        
+        addLog(`[INTEGRITY] Tampered signature of "${selectedFile.name}" - VERIFY ON MAIN SYSTEM!`, 'integrity');
+      } catch (err) {
+        addLog('Attack failed: ' + err.message, 'error');
+      }
+    }
+
+    async function corruptFile() {
+      if (!selectedFile) { alert('Select a file first!'); return; }
+      if (!confirm('This will corrupt the actual encrypted file. Continue?')) return;
+      
+      try {
+        const res = await fetch(`${API}/attack/tamper-file/${selectedFile.id}`, { method: 'POST' });
+        const data = await res.json();
+        
+        document.getElementById('int-result').innerHTML = `
+          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
+          Bytes Corrupted: ${data.bytesCorrupted}<br><br>
+          <strong>Result:</strong> ${data.result}
+        `;
+        
+        addLog(`[INTEGRITY] Corrupted encrypted file "${selectedFile.name}" - DOWNLOAD WILL FAIL!`, 'integrity');
+      } catch (err) {
+        addLog('Attack failed: ' + err.message, 'error');
+      }
+    }
+
+    // AVAILABILITY ATTACKS
+    async function deleteEncrypted() {
+      if (!selectedFile) { alert('Select a file first!'); return; }
+      if (!confirm('Delete encrypted file (keep record)? This will cause download to fail.')) return;
+      
+      try {
+        const res = await fetch(`${API}/attack/delete-encrypted/${selectedFile.id}`, { method: 'DELETE' });
+        const data = await res.json();
+        
+        document.getElementById('avail-result').innerHTML = `
+          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
+          File: ${data.filename}<br><br>
+          <strong>Result:</strong> ${data.result}
+        `;
+        
+        addLog(`[AVAILABILITY] Deleted encrypted file "${selectedFile.name}" - DOWNLOAD WILL FAIL!`, 'availability');
+      } catch (err) {
+        addLog('Attack failed: ' + err.message, 'error');
+      }
+    }
+
+    async function deleteComplete() {
+      if (!selectedFile) { alert('Select a file first!'); return; }
+      if (!confirm('COMPLETELY delete this file? This cannot be undone!')) return;
+      
+      try {
+        const res = await fetch(`${API}/attack/delete-file/${selectedFile.id}`, { method: 'DELETE' });
+        const data = await res.json();
+        
+        document.getElementById('avail-result').innerHTML = `
+          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
+          File: ${data.filename}<br><br>
+          <strong>Result:</strong> ${data.result}
+        `;
+        
+        addLog(`[AVAILABILITY] Completely deleted "${selectedFile.name}" - FILE IS GONE!`, 'availability');
+        loadFiles(); // Refresh list
+      } catch (err) {
+        addLog('Attack failed: ' + err.message, 'error');
+      }
+    }
+
+    // Initialize and auto-refresh
+    loadFiles();
+    
+    // Auto-refresh file list every 3 seconds
+    setInterval(() => {
+      loadFilesQuiet(); // Silent refresh without logging
+    }, 3000);
+    
+    // Silent version of loadFiles (no log spam)
+    async function loadFilesQuiet() {
+      try {
+        const res = await fetch(`${API}/spy/files`);
+        const files = await res.json();
+        
+        const html = files.map(f => `
+          <div class="file-item ${selectedFile?.id === f._id ? 'selected' : ''}" onclick="selectFile('${f._id}', '${f.originalName}')" id="file-${f._id}">
+            ${f.originalName} <span style="color:#666">(${f.uploadedBy?.username || 'unknown'})</span>
+          </div>
+        `).join('');
+        
+        document.getElementById('conf-files').innerHTML = html;
+        document.getElementById('int-files').innerHTML = html;
+        document.getElementById('avail-files').innerHTML = html;
+      } catch (err) {
+        // Silent fail
+      }
+    }
+  </script>
+</body>
+</html>

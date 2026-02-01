@@ -27,6 +27,14 @@ function Dashboard({ token, role, logout }) {
 
   useEffect(() => {
     fetchFiles();
+    
+    // Auto-refresh files every 3 seconds
+    const interval = setInterval(() => {
+      fetchFiles();
+    }, 3000);
+    
+    // Cleanup on unmount
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpload = async (e) => {
@@ -285,10 +293,11 @@ function Dashboard({ token, role, logout }) {
                 <div style={{ marginTop: '15px', padding: '10px', borderRadius: '4px', backgroundColor: verificationResult.verified ? '#d4edda' : '#f8d7da', color: verificationResult.verified ? '#155724' : '#721c24' }}>
                   <h4>Result: {verificationResult.verified ? 'Verified Secure' : 'Verification Failed'}</h4>
                   <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
-                    <li><strong>Signature Check:</strong> {verificationResult.signatureValid ? 'Valid' : 'Invalid'}</li>
-                    <li><strong>Hash Check:</strong> {verificationResult.hashMatch ? 'Match' : 'Mismatch'}</li>
+                    <li><strong>Confidentiality Check:</strong> {verificationResult.isEncrypted ? 'Protected (AES-256 Encrypted)' : 'Not Encrypted'}</li>
+                    <li><strong>Signature Check (Integrity):</strong> {verificationResult.signatureValid ? 'Valid' : 'Invalid'}</li>
+                    <li><strong>Hash Check (Integrity):</strong> {verificationResult.hashMatch ? 'Match' : 'Mismatch'}</li>
                     {verificationResult.isEncrypted && (
-                       <li><strong>Encryption:</strong> Verified ({verificationResult.encryptionAlgorithm})</li>
+                       <li><strong>Encryption Algorithm:</strong> {verificationResult.encryptionAlgorithm}</li>
                     )}
                   </ul>
                 </div>
