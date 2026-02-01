@@ -8,6 +8,11 @@ function Dashboard({ token, role, logout }) {
   const [fileToVerify, setFileToVerify] = useState(null);
   const [verificationStatus, setVerificationStatus] = useState(null); // null, 'verifying', 'verified', 'failed'
   const [verificationResult, setVerificationResult] = useState(null);
+  
+  // Preview state
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -106,6 +111,73 @@ function Dashboard({ token, role, logout }) {
     }
   };
 
+  // Preview file (Base64 encoded)
+  const handlePreview = async (fileId) => {
+    setPreviewLoading(true);
+    setShowPreviewModal(true);
+    setPreviewData(null);
+    try {
+      const res = await axios.get(`http://localhost:5000/api/files/preview/${fileId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPreviewData(res.data);
+    } catch (err) {
+      console.error(err);
+      alert('Preview Failed: ' + (err.response?.data?.message || err.message));
+      setShowPreviewModal(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const closePreviewModal = () => {
+    setShowPreviewModal(false);
+    setPreviewData(null);
+  };
+
+  // Render preview content based on MIME type
+  const renderPreviewContent = () => {
+    if (!previewData) return null;
+    const { base64, mimeType, filename } = previewData;
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    if (mimeType.startsWith('image/')) {
+      return <img src={dataUrl} alt={filename} style={{ maxWidth: '100%', maxHeight: '70vh' }} />;
+    }
+    if (mimeType === 'application/pdf') {
+      return <iframe src={dataUrl} title={filename} style={{ width: '100%', height: '70vh', border: 'none' }} />;
+    }
+    if (mimeType.startsWith('text/') || mimeType === 'application/json') {
+      const textContent = atob(base64);
+      return (
+        <pre style={{ 
+          backgroundColor: '#1e1e1e', color: '#d4d4d4', padding: '15px', 
+          borderRadius: '6px', overflow: 'auto', maxHeight: '70vh', whiteSpace: 'pre-wrap' 
+        }}>
+          {textContent}
+        </pre>
+      );
+    }
+    if (mimeType.startsWith('video/')) {
+      return <video src={dataUrl} controls style={{ maxWidth: '100%', maxHeight: '70vh' }} />;
+    }
+    if (mimeType.startsWith('audio/')) {
+      return <audio src={dataUrl} controls style={{ width: '100%' }} />;
+    }
+    // Fallback for unsupported types
+    return (
+      <div style={{ textAlign: 'center', padding: '20px' }}>
+        <p>Preview not available for this file type ({mimeType})</p>
+        <p><strong>Base64 Encoded Data:</strong></p>
+        <textarea 
+          readOnly 
+          value={base64.substring(0, 500) + '...'} 
+          style={{ width: '100%', height: '200px', fontFamily: 'monospace', fontSize: '0.8em' }} 
+        />
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding: '20px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -140,11 +212,11 @@ function Dashboard({ token, role, logout }) {
               <td>{file.uploadedBy?.username}</td>
               <td style={{ fontSize: '0.8em', fontFamily: 'monospace' }}>
                 <span title={`Full Signature (Base64): ${file.digitalSignature}`}>
-                  🔏 Sig: {file.digitalSignature?.substring(0, 12)}...
+                  Sig: {file.digitalSignature?.substring(0, 12)}...
                 </span>
                 <br />
                 <span title={`SHA-256 Hash: ${file.originalFileHash}`}>
-                  #️⃣ Hash: {file.originalFileHash?.substring(0, 12)}...
+                  Hash: {file.originalFileHash?.substring(0, 12)}...
                 </span>
                 <br/>
                 <button onClick={() => openSecurityModal(file)} style={{marginTop: '5px', fontSize: '0.9em', cursor: 'pointer'}}>
@@ -152,6 +224,7 @@ function Dashboard({ token, role, logout }) {
                 </button>
               </td>
               <td>
+                <button onClick={() => handlePreview(file._id)} style={{marginRight: '5px', backgroundColor: '#17a2b8', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '3px'}}>Preview</button>
                 <button onClick={() => handleDownload(file._id, file.originalName)} style={{marginRight: '5px'}}>Download</button>
                 {(role === 'Admin' || (role === 'Owner' && file.uploadedBy?._id === token.userId)) && ( 
                   <button onClick={() => handleDelete(file._id)} style={{backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '2px 5px'}}>Delete</button>
@@ -210,12 +283,12 @@ function Dashboard({ token, role, logout }) {
 
               {verificationStatus === 'verified' && verificationResult && (
                 <div style={{ marginTop: '15px', padding: '10px', borderRadius: '4px', backgroundColor: verificationResult.verified ? '#d4edda' : '#f8d7da', color: verificationResult.verified ? '#155724' : '#721c24' }}>
-                  <h4>Result: {verificationResult.verified ? '✅ Verified Secure' : '❌ Verification Failed'}</h4>
+                  <h4>Result: {verificationResult.verified ? 'Verified Secure' : 'Verification Failed'}</h4>
                   <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
                     <li><strong>Signature Check:</strong> {verificationResult.signatureValid ? 'Valid' : 'Invalid'}</li>
                     <li><strong>Hash Check:</strong> {verificationResult.hashMatch ? 'Match' : 'Mismatch'}</li>
                     {verificationResult.isEncrypted && (
-                       <li><strong>Encryption:</strong> 🔒 Verified ({verificationResult.encryptionAlgorithm})</li>
+                       <li><strong>Encryption:</strong> Verified ({verificationResult.encryptionAlgorithm})</li>
                     )}
                   </ul>
                 </div>
@@ -225,6 +298,114 @@ function Dashboard({ token, role, logout }) {
             <div style={{ marginTop: '20px', textAlign: 'right' }}>
               <button onClick={closeSecurityModal} style={{ padding: '8px 16px' }}>Close</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {showPreviewModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '80%', maxWidth: '900px',
+            maxHeight: '90vh', overflowY: 'auto', position: 'relative'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h2 style={{ margin: 0 }}>
+                File Preview {previewData && `- ${previewData.filename}`}
+              </h2>
+              <button 
+                onClick={closePreviewModal} 
+                style={{ 
+                  background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', 
+                  padding: '5px 10px' 
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {previewLoading ? (
+              <div style={{ textAlign: 'center', padding: '50px' }}>
+                <div style={{ fontSize: '24px', marginBottom: '10px' }}>Loading...</div>
+                <p>Decrypting and encoding file...</p>
+              </div>
+            ) : previewData ? (
+              <div>
+                {/* Encoding Info Bar */}
+                <div style={{ 
+                  backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '6px', 
+                  marginBottom: '15px', fontSize: '0.85em' 
+                }}>
+                  <strong>Encoding:</strong> {previewData.encoding.toUpperCase()} | 
+                  <strong> MIME Type:</strong> {previewData.mimeType} | 
+                  <strong> Size:</strong> {(previewData.size / 1024).toFixed(2)} KB
+                </div>
+
+                {/* QR Code & Security Data Section */}
+                <div style={{ 
+                  display: 'flex', gap: '20px', marginBottom: '15px', 
+                  flexWrap: 'wrap', backgroundColor: '#ffffff', padding: '15px', 
+                  borderRadius: '8px', color: '#000', border: '1px solid #000' 
+                }}>
+                  {/* QR Code */}
+                  <div style={{ textAlign: 'center', flex: '0 0 auto' }}>
+                    <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Verification QR</h4>
+                    {previewData.qrCode && (
+                      <img 
+                        src={previewData.qrCode} 
+                        alt="Verification QR Code" 
+                        style={{ borderRadius: '4px', border: '2px solid #000' }}
+                      />
+                    )}
+                    <p style={{ fontSize: '0.75em', marginTop: '8px', color: '#333' }}>
+                      Scan to verify file integrity
+                    </p>
+                  </div>
+
+                  {/* Encoded Security Data */}
+                  <div style={{ flex: 1, minWidth: '300px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Encoded Security Data</h4>
+                    
+                    <div style={{ marginBottom: '10px' }}>
+                      <strong style={{ color: '#000' }}>SHA-256 Hash:</strong>
+                      <div style={{ 
+                        fontFamily: 'monospace', fontSize: '0.7em', backgroundColor: '#f5f5f5', 
+                        padding: '8px', borderRadius: '4px', wordBreak: 'break-all', marginTop: '4px',
+                        border: '1px solid #ccc', color: '#000'
+                      }}>
+                        {previewData.securityData?.hash}
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '10px' }}>
+                      <strong style={{ color: '#000' }}>Digital Signature (Base64):</strong>
+                      <div style={{ 
+                        fontFamily: 'monospace', fontSize: '0.65em', backgroundColor: '#f5f5f5', 
+                        padding: '8px', borderRadius: '4px', wordBreak: 'break-all', marginTop: '4px',
+                        maxHeight: '60px', overflow: 'auto', border: '1px solid #ccc', color: '#000'
+                      }}>
+                        {previewData.securityData?.signature}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '15px', fontSize: '0.8em' }}>
+                      <span><strong style={{ color: '#000' }}>Encryption:</strong> {previewData.securityData?.encryption}</span>
+                      <span><strong style={{ color: '#000' }}>IV:</strong> {previewData.securityData?.iv?.substring(0, 16)}...</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* File Preview */}
+                <h4 style={{ margin: '10px 0' }}>File Content Preview</h4>
+                <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px', backgroundColor: '#fff' }}>
+                  {renderPreviewContent()}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

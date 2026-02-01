@@ -7,6 +7,7 @@ const path = require('path');
 const FileModel = require('../models/File');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const QRCode = require('qrcode');
 
 // Middleware to verify JWT
 const authenticate = (req, res, next) => {
@@ -243,6 +244,105 @@ router.post('/verify/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error("Verification Error:", error);
     res.status(500).json({ message: 'Verification failed', error: error.message });
+  }
+});
+
+// Helper: Get MIME type from filename
+function getMimeType(filename) {
+  const ext = path.extname(filename).toLowerCase();
+  const mimeTypes = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain',
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'text/javascript',
+    '.json': 'application/json',
+    '.xml': 'application/xml',
+    '.csv': 'text/csv',
+    '.md': 'text/markdown',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.zip': 'application/zip',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
+}
+
+// PREVIEW (Base64 Encoded) - Accessible to ALL authenticated users
+router.get('/preview/:id', authenticate, async (req, res) => {
+  try {
+    const file = await FileModel.findById(req.params.id);
+    if (!file) return res.status(404).json({ message: 'File not found' });
+
+    // Fetch Uploader to decrypt
+    const uploader = await User.findById(file.uploadedBy);
+    if (!uploader) return res.status(404).json({ message: 'Uploader not found' });
+
+    // Decrypt AES Key using Uploader's Private Key
+    const aesKeyBuffer = crypto.privateDecrypt(
+      { key: uploader.privateKey, passphrase: '' },
+      Buffer.from(file.encryptedAESKey, 'base64')
+    );
+    const aesKey = aesKeyBuffer.toString('utf8');
+
+    // Decrypt File
+    const encryptedFileBuffer = fs.readFileSync(file.path);
+    const decryptedFileBuffer = decryptFileWithAES(encryptedFileBuffer, aesKey, file.iv);
+
+    // Convert to Base64
+    const base64Data = decryptedFileBuffer.toString('base64');
+    const mimeType = getMimeType(file.originalName);
+
+    // Generate QR Code with verification data
+    const qrData = JSON.stringify({
+      file: file.originalName,
+      hash: file.originalFileHash,
+      sig: file.digitalSignature.substring(0, 50) + '...',
+      enc: 'AES-256-CBC',
+      verified: new Date().toISOString()
+    });
+    const qrCodeDataUrl = await QRCode.toDataURL(qrData, { 
+      width: 200, 
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' }
+    });
+
+    // Log for security audit
+    console.log(`[PREVIEW] File: ${file.originalName}, User: ${req.user.userId}, Encoded: Base64, MIME: ${mimeType}, QR: Generated`);
+
+    res.json({
+      base64: base64Data,
+      mimeType: mimeType,
+      filename: file.originalName,
+      size: decryptedFileBuffer.length,
+      encoding: 'base64',
+      qrCode: qrCodeDataUrl,
+      securityData: {
+        hash: file.originalFileHash,
+        signature: file.digitalSignature,
+        encryption: 'AES-256-CBC',
+        iv: file.iv
+      }
+    });
+
+  } catch (error) {
+    console.error("Preview Error:", error);
+    res.status(500).json({ message: 'Preview failed', error: error.message });
   }
 });
 

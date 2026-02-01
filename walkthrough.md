@@ -39,6 +39,27 @@ The entire end-to-end flow was automated and recorded.
 - **Registration & OTP Entry**: [View Recording](/login_mfa_verify_1769407780401.webp)
 - **Upload & Download**: [View Recording](/upload_and_download_test_1769409293595.webp)
 
+## Base64 Encoding Feature
+
+### 6. File Preview (Base64 Encoded + QR Code)
+- **Endpoint**: `GET /api/files/preview/:id`
+- **Access**: All authenticated users (Admin, Owner, Viewer, Staff)
+- **Encoding**: Files are decrypted, then encoded to Base64 for browser display
+- **QR Code**: Generated with file verification data (hash, signature, encryption)
+- **MIME Detection**: Automatic detection for 25+ file types
+- **Supported Previews**:
+  - 🖼️ **Images**: PNG, JPG, GIF, WebP, SVG, BMP
+  - 📄 **Documents**: PDF (inline viewer)
+  - 📝 **Text**: TXT, HTML, CSS, JS, JSON, XML, MD
+  - 🎥 **Video**: MP4, WebM
+  - 🎵 **Audio**: MP3, WAV
+  - 📦 **Other**: Base64 data display for unsupported types
+
+### 7. QR Verification Code
+- **Contains**: File name, SHA-256 hash, digital signature (truncated), encryption algorithm
+- **Purpose**: Scan to verify file integrity independently
+- **Format**: JSON encoded in QR
+
 ## How to Run for Demo
 
 1. **Start Backend**: `cd server && node server.js`
