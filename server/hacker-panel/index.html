@@ -1,168 +1,416 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hacker Simulator - Security Demo</title>
+  <title>Hacker Simulator - Control Panel</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --card: 240 10% 3.9%;
+      --card-foreground: 0 0% 98%;
+      --popover: 240 10% 3.9%;
+      --popover-foreground: 0 0% 98%;
+      --primary: 0 0% 98%;
+      --primary-foreground: 240 5.9% 10%;
+      --secondary: 240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --muted: 240 3.7% 15.9%;
+      --muted-foreground: 240 5% 64.9%;
+      --accent: 240 3.7% 15.9%;
+      --accent-foreground: 0 0% 98%;
+      --destructive: 0 62.8% 30.6%;
+      --destructive-foreground: 0 0% 98%;
+      --border: 240 3.7% 15.9%;
+      --input: 240 3.7% 15.9%;
+      --ring: 240 4.9% 83.9%;
+      --radius: 0.5rem;
+      
+      --chart-1: 173 58% 39%;
+      --chart-2: 12 76% 61%;
+      --chart-3: 197 37% 24%;
+      --chart-4: 43 74% 66%;
+      --chart-5: 27 87% 67%;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: 'Courier New', monospace;
-      background: #0a0a0a;
-      color: #00ff00;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+      line-height: 1.5;
+      padding: 2rem;
       min-height: 100vh;
-      padding: 20px;
     }
+
+    /* Layout */
     .header {
-      text-align: center;
-      padding: 20px;
-      border: 2px solid #ff0000;
-      margin-bottom: 20px;
-      background: #1a0000;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid hsl(var(--border));
+      padding-bottom: 1rem;
     }
-    .header h1 { color: #ff0000; font-size: 2em; }
-    .header p { color: #ff6666; margin-top: 10px; }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: colors 0.2s ease;
+    }
+
+    .badge-destructive {
+      border-color: transparent;
+      background-color: hsl(var(--destructive));
+      color: hsl(var(--destructive-foreground));
+      box-shadow: 0 2px 10px rgba(220, 38, 38, 0.2);
+    }
     
-    .container { display: flex; gap: 20px; flex-wrap: wrap; }
-    
-    .panel {
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Cards */
+    .card {
+      border-radius: var(--radius);
+      border: 1px solid hsl(var(--border));
+      background-color: hsl(var(--card));
+      color: hsl(var(--card-foreground));
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 1.5rem;
+      border-bottom: 1px solid hsl(var(--border));
+      background-color: hsl(240 3.7% 5%);
+      border-top-left-radius: var(--radius);
+      border-top-right-radius: var(--radius);
+    }
+
+    .card-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-description {
+      font-size: 0.875rem;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .card-content {
+      padding: 1.5rem;
       flex: 1;
-      min-width: 300px;
-      border: 1px solid #333;
-      padding: 15px;
-      background: #111;
+      display: flex;
+      flex-direction: column;
     }
-    .panel h2 {
-      border-bottom: 1px solid #333;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
+
+    .card-footer {
+      padding: 1.5rem;
+      padding-top: 0;
+      display: flex;
+      align-items: center;
     }
-    .panel.confidentiality h2 { color: #00ffff; }
-    .panel.integrity h2 { color: #ffff00; }
-    .panel.availability h2 { color: #ff00ff; }
-    
-    .file-list { max-height: 200px; overflow-y: auto; margin-bottom: 15px; }
-    .file-item {
-      padding: 8px;
-      margin: 5px 0;
-      background: #1a1a1a;
-      border-left: 3px solid #333;
-      cursor: pointer;
-    }
-    .file-item:hover { background: #2a2a2a; border-left-color: #00ff00; }
-    .file-item.selected { border-left-color: #ff0000; background: #2a1a1a; }
-    
-    button {
-      padding: 10px 15px;
-      margin: 5px;
-      border: none;
-      cursor: pointer;
-      font-family: 'Courier New', monospace;
-      font-weight: bold;
-    }
-    .btn-spy { background: #00ffff; color: #000; }
-    .btn-tamper { background: #ffff00; color: #000; }
-    .btn-delete { background: #ff00ff; color: #000; }
-    .btn-danger { background: #ff0000; color: #fff; }
-    
-    .log {
-      background: #000;
-      border: 1px solid #333;
-      padding: 10px;
-      height: 300px;
+
+    /* Lists */
+    .file-list {
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      max-height: 240px;
       overflow-y: auto;
-      font-size: 0.85em;
+      margin-bottom: 1.5rem;
+      background-color: hsl(240 3.7% 2%);
     }
-    .log-entry { margin: 5px 0; padding: 5px; border-left: 3px solid #333; }
-    .log-entry.confidentiality { border-left-color: #00ffff; }
-    .log-entry.integrity { border-left-color: #ffff00; }
-    .log-entry.availability { border-left-color: #ff00ff; }
-    .log-entry.success { color: #00ff00; }
-    .log-entry.error { color: #ff0000; }
+
+    .file-item {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid hsl(var(--border));
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .file-item:last-child { border-bottom: none; }
     
+    .file-item:hover {
+      background-color: hsl(var(--secondary));
+    }
+
+    .file-item.selected {
+      background-color: hsl(var(--accent));
+      color: hsl(var(--accent-foreground));
+      border-left: 3px solid hsl(var(--primary));
+      padding-left: calc(1rem - 3px);
+    }
+
+    .file-meta {
+      font-size: 0.75rem;
+      color: hsl(var(--muted-foreground));
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      font-weight: 500;
+      height: 2.5rem;
+      padding: 0 1rem;
+      cursor: pointer;
+      transition: colors 0.2s;
+      border: none;
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+
+    .btn:last-child { margin-bottom: 0; }
+
+    .btn-primary {
+      background-color: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+    }
+    .btn-primary:hover { opacity: 0.9; }
+
+    .btn-secondary {
+      background-color: hsl(var(--secondary));
+      color: hsl(var(--secondary-foreground));
+    }
+    .btn-secondary:hover { background-color: hsl(240 3.7% 20%); }
+
+    .btn-destructive {
+      background-color: hsl(var(--destructive));
+      color: hsl(var(--destructive-foreground));
+    }
+    .btn-destructive:hover { opacity: 0.9; }
+
+    .btn-outline {
+      background-color: transparent;
+      border: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
+    }
+    .btn-outline:hover { background-color: hsl(var(--accent)); }
+
+    /* Results & Logs */
     .result-box {
-      background: #1a1a1a;
-      border: 1px solid #444;
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 0.8em;
+      margin-top: 1rem;
+      padding: 1rem;
+      background-color: hsl(240 3.7% 2%);
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      color: hsl(var(--foreground));
+      word-break: break-all;
       max-height: 150px;
       overflow-y: auto;
-      word-break: break-all;
     }
-    
-    .warning {
-      background: #330000;
-      border: 2px solid #ff0000;
-      padding: 15px;
-      margin: 20px 0;
-      text-align: center;
-      color: #ff6666;
+
+    .log-container {
+      background-color: hsl(240 3.7% 2%);
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 1rem;
     }
+
+    .log-header {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .log {
+      height: 200px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .log-entry {
+      padding: 0.25rem 0.5rem;
+      border-left: 2px solid hsl(var(--border));
+      color: hsl(var(--muted-foreground));
+    }
+
+    .log-entry.success { border-left-color: hsl(142 76% 36%); color: hsl(142 76% 70%); }
+    .log-entry.error { border-left-color: hsl(var(--destructive)); color: hsl(0 84% 70%); }
+    .log-entry.confidentiality { border-left-color: hsl(199 89% 48%); color: hsl(199 89% 80%); }
+    .log-entry.integrity { border-left-color: hsl(43 74% 66%); color: hsl(43 74% 85%); }
+    .log-entry.availability { border-left-color: hsl(270 50% 40%); color: hsl(270 50% 80%); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: hsl(142 76% 36%);
+      display: inline-block;
+      margin-right: 0.5rem;
+      box-shadow: 0 0 8px hsl(142 76% 36%);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>HACKER SIMULATOR</h1>
-    <p>Security Attack Demonstration Panel - FOR EDUCATIONAL PURPOSES ONLY</p>
+    <h1>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+      Hacker Simulator <span style="font-weight: 400; color: hsl(var(--muted-foreground)); margin-left: 0.5rem; font-size: 1rem;"></span>
+    </h1>
+    <div class="badge badge-destructive">
+      <div class="status-dot" style="background-color: white; box-shadow: none; width: 6px; height: 6px;"></div>
+      UNAUTHORIZED ACCESS
+    </div>
   </div>
 
-  <div class="warning">
-    This panel demonstrates the CIA Triad: <strong>Confidentiality</strong>, <strong>Integrity</strong>, and <strong>Availability</strong> attacks.
-    After running an attack, verify its effect on the legitimate system at <a href="http://localhost:5173" style="color:#00ff00">localhost:5173</a>
-  </div>
-
-  <div class="container">
+  <div class="grid">
     <!-- CONFIDENTIALITY PANEL -->
-    <div class="panel confidentiality">
-      <h2>CONFIDENTIALITY ATTACK</h2>
-      <p style="font-size:0.8em; margin-bottom:10px;">View encrypted data that should be secret</p>
-      
-      <div class="file-list" id="conf-files"></div>
-      
-      <button class="btn-spy" onclick="spyOnFile()">VIEW ENCRYPTED DATA</button>
-      
-      <div class="result-box" id="conf-result"></div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(199 89% 48%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Confidentiality
+        </div>
+        <div class="card-description">Intercept and decrypt private data</div>
+      </div>
+      <div class="card-content">
+        <div class="file-list" id="conf-files"></div>
+        <button class="btn btn-outline" onclick="spyOnFile()" style="border-color: hsl(199 89% 48%); color: hsl(199 89% 80%);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem">
+            <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Detailed Decryption Attack
+        </button>
+        <div class="result-box" id="conf-result" style="display:none"></div>
+      </div>
     </div>
 
     <!-- INTEGRITY PANEL -->
-    <div class="panel integrity">
-      <h2>INTEGRITY ATTACK</h2>
-      <p style="font-size:0.8em; margin-bottom:10px;">Tamper with file hashes and signatures</p>
-      
-      <div class="file-list" id="int-files"></div>
-      
-      <button class="btn-tamper" onclick="tamperHash()">TAMPER HASH</button>
-      <button class="btn-tamper" onclick="tamperSignature()">TAMPER SIGNATURE</button>
-      <button class="btn-danger" onclick="corruptFile()">CORRUPT FILE</button>
-      
-      <div class="result-box" id="int-result"></div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(43 74% 66%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          Integrity
+        </div>
+        <div class="card-description">Compromise data reliability</div>
+      </div>
+      <div class="card-content">
+        <div class="file-list" id="int-files"></div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn btn-outline" onclick="tamperHash()" style="flex: 1; border-color: hsl(43 74% 66%); color: hsl(43 74% 80%);">
+            Tamper Hash
+          </button>
+          <button class="btn btn-outline" onclick="tamperSignature()" style="flex: 1; border-color: hsl(43 74% 66%); color: hsl(43 74% 80%);">
+            Tamper Sig
+          </button>
+        </div>
+        <button class="btn btn-destructive" onclick="corruptFile()" style="margin-top: 0.5rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+            <polyline points="13 2 13 9 20 9"></polyline>
+          </svg>
+          Corrupt Data Block
+        </button>
+        <div class="result-box" id="int-result" style="display:none"></div>
+      </div>
     </div>
 
     <!-- AVAILABILITY PANEL -->
-    <div class="panel availability">
-      <h2>AVAILABILITY ATTACK</h2>
-      <p style="font-size:0.8em; margin-bottom:10px;">Delete files to deny access</p>
-      
-      <div class="file-list" id="avail-files"></div>
-      
-      <button class="btn-delete" onclick="deleteEncrypted()">DELETE ENCRYPTED FILE</button>
-      <button class="btn-danger" onclick="deleteComplete()">DELETE COMPLETELY</button>
-      
-      <div class="result-box" id="avail-result"></div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(270 50% 60%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+          </svg>
+          Availability
+        </div>
+        <div class="card-description">Deny service to legitimate users</div>
+      </div>
+      <div class="card-content">
+        <div class="file-list" id="avail-files"></div>
+        <button class="btn btn-outline" onclick="deleteEncrypted()" style="border-color: hsl(270 50% 60%); color: hsl(270 50% 80%);">
+          Delete Encrypted File
+        </button>
+        <button class="btn btn-destructive" onclick="deleteComplete()" style="margin-top: 0.5rem; background-color: hsl(0 62.8% 20%); border: 1px solid hsl(0 62.8% 30%);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem">
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          </svg>
+          Permanent Data Loss
+        </button>
+        <div class="result-box" id="avail-result" style="display:none"></div>
+      </div>
     </div>
   </div>
 
-  <h2 style="margin-top:20px; color:#ff0000;">ATTACK LOG</h2>
-  <div class="log" id="attack-log">
-    <div class="log-entry">[SYSTEM] Hacker panel initialized. Select a file to attack.</div>
+  <div class="log-container">
+    <div class="log-header">
+      <div class="status-dot"></div>
+      System Activity Log
+    </div>
+    <div class="log" id="attack-log">
+      <div class="log-entry">[SYSTEM] Control panel initialized. Waiting for target selection...</div>
+    </div>
   </div>
 
   <script>
     const API = 'http://localhost:5001/api';
     let selectedFile = null;
 
-    // Load files on startup
+    // Load files
     async function loadFiles() {
       try {
         const res = await fetch(`${API}/spy/files`);
@@ -170,7 +418,8 @@
         
         const html = files.map(f => `
           <div class="file-item" onclick="selectFile('${f._id}', '${f.originalName}')" id="file-${f._id}">
-            ${f.originalName} <span style="color:#666">(${f.uploadedBy?.username || 'unknown'})</span>
+            <span>${f.originalName}</span>
+            <span class="file-meta">${f.uploadedBy?.username || 'unknown'}</span>
           </div>
         `).join('');
         
@@ -178,9 +427,9 @@
         document.getElementById('int-files').innerHTML = html;
         document.getElementById('avail-files').innerHTML = html;
         
-        addLog('Loaded ' + files.length + ' files from target database', 'success');
+        addLog('Scanned DB: Found ' + files.length + ' susceptible files', 'success');
       } catch (err) {
-        addLog('Failed to load files: ' + err.message, 'error');
+        addLog('Connection Error: ' + err.message, 'error');
       }
     }
 
@@ -188,170 +437,180 @@
       selectedFile = { id, name };
       document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
       document.querySelectorAll(`#file-${id}`).forEach(el => el.classList.add('selected'));
-      addLog(`Selected target: ${name}`);
+      addLog(`Target locked: ${name}`);
+      
+      // Reset result boxes
+      document.querySelectorAll('.result-box').forEach(el => el.style.display = 'none');
     }
 
     function addLog(message, type = '') {
       const log = document.getElementById('attack-log');
       const entry = document.createElement('div');
       entry.className = `log-entry ${type}`;
-      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      entry.textContent = `[${time}] ${message}`;
       log.appendChild(entry);
       log.scrollTop = log.scrollHeight;
     }
 
-    // CONFIDENTIALITY ATTACK
+    // Attacks
     async function spyOnFile() {
-      if (!selectedFile) { alert('Select a file first!'); return; }
+      if (!selectedFile) { addLog('Error: No target selected', 'error'); return; }
       
       try {
         const res = await fetch(`${API}/attack/view-encrypted/${selectedFile.id}`);
         const data = await res.json();
         
-        document.getElementById('conf-result').innerHTML = `
-          <strong>${data.attack}</strong><br>
-          File: ${data.filename}<br>
-          Encrypted Hex: ${data.encryptedHex}<br><br>
-          <strong>AES Key (RSA encrypted):</strong><br>
-          ${data.encryptedAESKey?.substring(0, 100)}...<br><br>
-          <strong>Note:</strong> ${data.note}
+        const box = document.getElementById('conf-result');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="color:hsl(199 89% 70%); margin-bottom:0.5rem; font-weight:bold;">${data.attack}</div>
+          <div>File: ${data.filename}</div>
+          <div style="color:hsl(var(--muted-foreground)); margin:0.5rem 0;">Encrypted Hex Dump:</div>
+          <div style="background:rgba(0,0,0,0.3); padding:0.5rem; margin-bottom:0.5rem;">${data.encryptedHex?.substring(0, 100)}...</div>
+          <div style="color:hsl(var(--muted-foreground));">Decrypted AES Key:</div>
+          <div style="word-break:break-all;">${data.encryptedAESKey?.substring(0, 50)}...</div>
         `;
         
-        addLog(`[CONFIDENTIALITY] Viewed encrypted data of "${selectedFile.name}" - PROTECTED BY ENCRYPTION`, 'confidentiality');
+        addLog(`[CONFIDENTIALITY] Intercepted payload from "${selectedFile.name}"`, 'confidentiality');
       } catch (err) {
         addLog('Attack failed: ' + err.message, 'error');
       }
     }
 
-    // INTEGRITY ATTACKS
     async function tamperHash() {
-      if (!selectedFile) { alert('Select a file first!'); return; }
+      if (!selectedFile) { addLog('Error: No target selected', 'error'); return; }
       
       try {
         const res = await fetch(`${API}/attack/tamper-hash/${selectedFile.id}`, { method: 'POST' });
         const data = await res.json();
         
-        document.getElementById('int-result').innerHTML = `
-          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
-          Original Hash: ${data.originalHash?.substring(0, 20)}...<br>
-          Tampered Hash: ${data.tamperedHash?.substring(0, 20)}...<br><br>
-          <strong>Result:</strong> ${data.result}
+        const box = document.getElementById('int-result');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="color:hsl(43 74% 70%); margin-bottom:0.5rem; font-weight:bold;">HASH COLLISION INJECTED</div>
+          <div>Original: ${data.originalHash?.substring(0, 15)}...</div>
+          <div>Modified: ${data.tamperedHash?.substring(0, 15)}...</div>
+          <div style="margin-top:0.5rem; color:hsl(var(--muted-foreground))">${data.result}</div>
         `;
         
-        addLog(`[INTEGRITY] Tampered hash of "${selectedFile.name}" - VERIFY ON MAIN SYSTEM!`, 'integrity');
+        addLog(`[INTEGRITY] Hash mismatch injection successful on "${selectedFile.name}"`, 'integrity');
       } catch (err) {
         addLog('Attack failed: ' + err.message, 'error');
       }
     }
 
     async function tamperSignature() {
-      if (!selectedFile) { alert('Select a file first!'); return; }
+      if (!selectedFile) { addLog('Error: No target selected', 'error'); return; }
       
       try {
         const res = await fetch(`${API}/attack/tamper-signature/${selectedFile.id}`, { method: 'POST' });
         const data = await res.json();
         
-        document.getElementById('int-result').innerHTML = `
-          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
-          Original Sig: ${data.originalSignature}<br>
-          Tampered Sig: ${data.tamperedSignature}<br><br>
-          <strong>Result:</strong> ${data.result}
+        const box = document.getElementById('int-result');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="color:hsl(43 74% 70%); margin-bottom:0.5rem; font-weight:bold;">SIGNATURE FORGED</div>
+          <div>Original: ${data.originalSignature?.substring(0, 15)}...</div>
+          <div>Modified: ${data.tamperedSignature?.substring(0, 15)}...</div>
+          <div style="margin-top:0.5rem; color:hsl(var(--muted-foreground))">${data.result}</div>
         `;
         
-        addLog(`[INTEGRITY] Tampered signature of "${selectedFile.name}" - VERIFY ON MAIN SYSTEM!`, 'integrity');
+        addLog(`[INTEGRITY] Invalid digital signature attached to "${selectedFile.name}"`, 'integrity');
       } catch (err) {
         addLog('Attack failed: ' + err.message, 'error');
       }
     }
 
     async function corruptFile() {
-      if (!selectedFile) { alert('Select a file first!'); return; }
-      if (!confirm('This will corrupt the actual encrypted file. Continue?')) return;
+      if (!selectedFile) { addLog('Error: No target selected', 'error'); return; }
+      if (!confirm('Execute corruption payload? Data will be unrecoverable.')) return;
       
       try {
         const res = await fetch(`${API}/attack/tamper-file/${selectedFile.id}`, { method: 'POST' });
         const data = await res.json();
         
-        document.getElementById('int-result').innerHTML = `
-          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
-          Bytes Corrupted: ${data.bytesCorrupted}<br><br>
-          <strong>Result:</strong> ${data.result}
+        const box = document.getElementById('int-result');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="color:hsl(0 84% 70%); margin-bottom:0.5rem; font-weight:bold;">DATA CORRUPTION SUCCESS</div>
+          <div>Bytes Destroyed: ${data.bytesCorrupted}</div>
+          <div style="margin-top:0.5rem; color:hsl(var(--muted-foreground))">${data.result}</div>
         `;
         
-        addLog(`[INTEGRITY] Corrupted encrypted file "${selectedFile.name}" - DOWNLOAD WILL FAIL!`, 'integrity');
+        addLog(`[INTEGRITY] Corrupted raw binary data of "${selectedFile.name}"`, 'integrity');
       } catch (err) {
         addLog('Attack failed: ' + err.message, 'error');
       }
     }
 
-    // AVAILABILITY ATTACKS
     async function deleteEncrypted() {
-      if (!selectedFile) { alert('Select a file first!'); return; }
-      if (!confirm('Delete encrypted file (keep record)? This will cause download to fail.')) return;
+      if (!selectedFile) { addLog('Error: No target selected', 'error'); return; }
+      if (!confirm('Execute availability attack? Target will be unable to access resource.')) return;
       
       try {
         const res = await fetch(`${API}/attack/delete-encrypted/${selectedFile.id}`, { method: 'DELETE' });
         const data = await res.json();
         
-        document.getElementById('avail-result').innerHTML = `
-          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
-          File: ${data.filename}<br><br>
-          <strong>Result:</strong> ${data.result}
+        const box = document.getElementById('avail-result');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="color:hsl(270 50% 70%); margin-bottom:0.5rem; font-weight:bold;">RESOURCE UNAVAILABLE</div>
+          <div>Target: ${data.filename}</div>
+          <div style="margin-top:0.5rem; color:hsl(var(--muted-foreground))">${data.result}</div>
         `;
         
-        addLog(`[AVAILABILITY] Deleted encrypted file "${selectedFile.name}" - DOWNLOAD WILL FAIL!`, 'availability');
+        addLog(`[AVAILABILITY] Removed encrypted payload for "${selectedFile.name}"`, 'availability');
       } catch (err) {
         addLog('Attack failed: ' + err.message, 'error');
       }
     }
 
     async function deleteComplete() {
-      if (!selectedFile) { alert('Select a file first!'); return; }
-      if (!confirm('COMPLETELY delete this file? This cannot be undone!')) return;
+      if (!selectedFile) { addLog('Error: No target selected', 'error'); return; }
+      if (!confirm('WARNING: PERMANENT DATA LOSS. Confirm erase?')) return;
       
       try {
         const res = await fetch(`${API}/attack/delete-file/${selectedFile.id}`, { method: 'DELETE' });
         const data = await res.json();
         
-        document.getElementById('avail-result').innerHTML = `
-          <strong style="color:#ff0000">ATTACK SUCCESS!</strong><br>
-          File: ${data.filename}<br><br>
-          <strong>Result:</strong> ${data.result}
+        const box = document.getElementById('avail-result');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="color:hsl(0 84% 70%); margin-bottom:0.5rem; font-weight:bold;">DATA ERASURE CONFIRMED</div>
+          <div>Target: ${data.filename}</div>
+          <div style="margin-top:0.5rem; color:hsl(var(--muted-foreground))">${data.result}</div>
         `;
         
-        addLog(`[AVAILABILITY] Completely deleted "${selectedFile.name}" - FILE IS GONE!`, 'availability');
-        loadFiles(); // Refresh list
+        addLog(`[AVAILABILITY] Permanently scrubbed "${selectedFile.name}" from database`, 'availability');
+        loadFiles();
       } catch (err) {
         addLog('Attack failed: ' + err.message, 'error');
       }
     }
 
-    // Initialize and auto-refresh
+    // Init
     loadFiles();
-    
-    // Auto-refresh file list every 3 seconds
     setInterval(() => {
-      loadFilesQuiet(); // Silent refresh without logging
+      loadFilesQuiet();
     }, 3000);
-    
-    // Silent version of loadFiles (no log spam)
+
     async function loadFilesQuiet() {
       try {
         const res = await fetch(`${API}/spy/files`);
         const files = await res.json();
-        
         const html = files.map(f => `
           <div class="file-item ${selectedFile?.id === f._id ? 'selected' : ''}" onclick="selectFile('${f._id}', '${f.originalName}')" id="file-${f._id}">
-            ${f.originalName} <span style="color:#666">(${f.uploadedBy?.username || 'unknown'})</span>
+            <span>${f.originalName}</span>
+            <span class="file-meta">${f.uploadedBy?.username || 'unknown'}</span>
           </div>
         `).join('');
         
+        // Only update if changed to prevent jitter? Simplest is just innerHTML
         document.getElementById('conf-files').innerHTML = html;
         document.getElementById('int-files').innerHTML = html;
         document.getElementById('avail-files').innerHTML = html;
-      } catch (err) {
-        // Silent fail
-      }
+      } catch (e) {}
     }
   </script>
 </body>

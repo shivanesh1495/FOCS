@@ -6,13 +6,14 @@ function Dashboard({ token, role, logout }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   const [fileToVerify, setFileToVerify] = useState(null);
-  const [verificationStatus, setVerificationStatus] = useState(null); // null, 'verifying', 'verified', 'failed'
+  const [verificationStatus, setVerificationStatus] = useState(null);
   const [verificationResult, setVerificationResult] = useState(null);
-  
-  // Preview state
+  const [verificationError, setVerificationError] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -27,13 +28,7 @@ function Dashboard({ token, role, logout }) {
 
   useEffect(() => {
     fetchFiles();
-    
-    // Auto-refresh files every 3 seconds
-    const interval = setInterval(() => {
-      fetchFiles();
-    }, 3000);
-    
-    // Cleanup on unmount
+    const interval = setInterval(() => fetchFiles(), 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -43,6 +38,7 @@ function Dashboard({ token, role, logout }) {
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+    setUploading(true);
 
     try {
       await axios.post('http://localhost:5000/api/files/upload', formData, {
@@ -51,11 +47,15 @@ function Dashboard({ token, role, logout }) {
           Authorization: `Bearer ${token}` 
         }
       });
-      alert('File Uploaded!');
       setSelectedFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('file-upload');
+      if (fileInput) fileInput.value = '';
       fetchFiles();
     } catch (err) {
       alert('Upload Failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -72,6 +72,7 @@ function Dashboard({ token, role, logout }) {
       link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
+      link.remove();
     } catch (err) {
       alert('Download Failed: ' + (err.response?.data?.message || err.message));
     }
@@ -84,7 +85,6 @@ function Dashboard({ token, role, logout }) {
       await axios.delete(`http://localhost:5000/api/files/${fileId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('File Deleted Successfully');
       fetchFiles();
     } catch (err) {
       alert('Delete Failed: ' + (err.response?.data?.message || err.message));
@@ -95,6 +95,7 @@ function Dashboard({ token, role, logout }) {
     setFileToVerify(file);
     setVerificationStatus(null);
     setVerificationResult(null);
+    setVerificationError(null);
     setShowSecurityModal(true);
   };
 
@@ -115,11 +116,10 @@ function Dashboard({ token, role, logout }) {
     } catch (err) {
       console.error(err);
       setVerificationStatus('failed');
-      alert('Verification Request Failed');
+      setVerificationError(err.response?.data?.message || 'Verification request failed. The server might be compromised or unreachable.');
     }
   };
 
-  // Preview file (Base64 encoded)
   const handlePreview = async (fileId) => {
     setPreviewLoading(true);
     setShowPreviewModal(true);
@@ -131,8 +131,7 @@ function Dashboard({ token, role, logout }) {
       setPreviewData(res.data);
     } catch (err) {
       console.error(err);
-      alert('Preview Failed: ' + (err.response?.data?.message || err.message));
-      setShowPreviewModal(false);
+      setPreviewError(err.response?.data?.message || 'Failed to generate preview. The file might be corrupted or deleted.');
     } finally {
       setPreviewLoading(false);
     }
@@ -143,169 +142,317 @@ function Dashboard({ token, role, logout }) {
     setPreviewData(null);
   };
 
-  // Render preview content based on MIME type
   const renderPreviewContent = () => {
     if (!previewData) return null;
     const { base64, mimeType, filename } = previewData;
     const dataUrl = `data:${mimeType};base64,${base64}`;
 
     if (mimeType.startsWith('image/')) {
-      return <img src={dataUrl} alt={filename} style={{ maxWidth: '100%', maxHeight: '70vh' }} />;
+      return <img src={dataUrl} alt={filename} style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block', margin: '0 auto' }} />;
     }
     if (mimeType === 'application/pdf') {
-      return <iframe src={dataUrl} title={filename} style={{ width: '100%', height: '70vh', border: 'none' }} />;
+      return <iframe src={dataUrl} title={filename} style={{ width: '100%', height: '60vh', border: 'none' }} />;
     }
     if (mimeType.startsWith('text/') || mimeType === 'application/json') {
       const textContent = atob(base64);
-      return (
-        <pre style={{ 
-          backgroundColor: '#1e1e1e', color: '#d4d4d4', padding: '15px', 
-          borderRadius: '6px', overflow: 'auto', maxHeight: '70vh', whiteSpace: 'pre-wrap' 
-        }}>
-          {textContent}
-        </pre>
-      );
+      return <pre className="preview-content">{textContent}</pre>;
     }
     if (mimeType.startsWith('video/')) {
-      return <video src={dataUrl} controls style={{ maxWidth: '100%', maxHeight: '70vh' }} />;
+      return <video src={dataUrl} controls style={{ maxWidth: '100%', maxHeight: '60vh', display: 'block', margin: '0 auto' }} />;
     }
     if (mimeType.startsWith('audio/')) {
       return <audio src={dataUrl} controls style={{ width: '100%' }} />;
     }
-    // Fallback for unsupported types
     return (
-      <div style={{ textAlign: 'center', padding: '20px' }}>
-        <p>Preview not available for this file type ({mimeType})</p>
-        <p><strong>Base64 Encoded Data:</strong></p>
-        <textarea 
-          readOnly 
-          value={base64.substring(0, 500) + '...'} 
-          style={{ width: '100%', height: '200px', fontFamily: 'monospace', fontSize: '0.8em' }} 
-        />
+      <div className="text-center p-6">
+        <p className="text-muted">Preview not available for this file type ({mimeType})</p>
       </div>
     );
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Secure File Share - {role}</h1>
-        <button onClick={logout}>Logout</button>
-      </header>
-
-      {(role === 'Admin' || role === 'Owner') && (
-        <div style={{ margin: '20px 0', border: '1px solid #ddd', padding: '15px' }}>
-          <h3>Upload File (Encrypted)</h3>
-          <form onSubmit={handleUpload}>
-            <input type="file" onChange={(e) => setSelectedFile(e.target.files[0])} />
-            <button type="submit" disabled={!selectedFile}>Upload</button>
-          </form>
+    <div className="dashboard-container">
+      {/* Navbar */}
+      <nav className="navbar">
+        <div className="navbar-brand">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+            <polyline points="13 2 13 9 20 9"/>
+          </svg>
+          <h1>Secure File Share</h1>
+          <span className="badge">{role}</span>
         </div>
-      )}
+        <div className="navbar-actions">
+          <button onClick={logout} className="btn btn-outline btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Logout
+          </button>
+        </div>
+      </nav>
 
-      <h3>Files</h3>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid #ddd', textAlign: 'left' }}>
-            <th>Filename</th>
-            <th>Uploaded By</th>
-            <th>Security Info</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {files.map(file => (
-            <tr key={file._id} style={{ borderBottom: '1px solid #eee' }}>
-              <td>{file.originalName}</td>
-              <td>{file.uploadedBy?.username}</td>
-              <td style={{ fontSize: '0.8em', fontFamily: 'monospace' }}>
-                <span title={`Full Signature (Base64): ${file.digitalSignature}`}>
-                  Sig: {file.digitalSignature?.substring(0, 12)}...
-                </span>
-                <br />
-                <span title={`SHA-256 Hash: ${file.originalFileHash}`}>
-                  Hash: {file.originalFileHash?.substring(0, 12)}...
-                </span>
-                <br/>
-                <button onClick={() => openSecurityModal(file)} style={{marginTop: '5px', fontSize: '0.9em', cursor: 'pointer'}}>
-                   View Security Details
-                </button>
-              </td>
-              <td>
-                <button onClick={() => handlePreview(file._id)} style={{marginRight: '5px', backgroundColor: '#17a2b8', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '3px'}}>Preview</button>
-                <button onClick={() => handleDownload(file._id, file.originalName)} style={{marginRight: '5px'}}>Download</button>
-                {(role === 'Admin' || (role === 'Owner' && file.uploadedBy?._id === token.userId)) && ( 
-                  <button onClick={() => handleDelete(file._id)} style={{backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '2px 5px'}}>Delete</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      
-      {showSecurityModal && fileToVerify && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center'
-        }}>
-          <div style={{
-            backgroundColor: 'white', padding: '20px', borderRadius: '8px', width: '600px', maxWidth: '90%',
-            maxHeight: '90vh', overflowY: 'auto'
-          }}>
-            <h2>Security Details: {fileToVerify.originalName}</h2>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <strong>Digital Signature (RSA-SHA256):</strong>
-              <div style={{ 
-                wordBreak: 'break-all', backgroundColor: '#f5f5f5', padding: '10px', 
-                borderRadius: '4px', fontSize: '0.8em', fontFamily: 'monospace', maxHeight: '100px', overflowY: 'auto' 
-              }}>
-                {fileToVerify.digitalSignature}
+      <main style={{ padding: '1.5rem' }}>
+        {/* Upload Section */}
+        {(role === 'Admin' || role === 'Owner') && (
+          <div className="upload-card">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.5rem', verticalAlign: 'middle' }}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Upload File
+            </h3>
+            <form onSubmit={handleUpload} className="upload-form">
+              <div className="file-input-wrapper">
+                <input 
+                  id="file-upload"
+                  type="file" 
+                  className="file-input"
+                  onChange={(e) => setSelectedFile(e.target.files[0])} 
+                />
               </div>
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <strong>Original File Hash (SHA-256):</strong>
-              <div style={{ 
-                wordBreak: 'break-all', backgroundColor: '#f5f5f5', padding: '10px', 
-                borderRadius: '4px', fontSize: '0.9em', fontFamily: 'monospace' 
-              }}>
-                {fileToVerify.originalFileHash}
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid #ddd', paddingTop: '15px', marginTop: '15px' }}>
-              <h3>Integrity Verification</h3>
-              <p>Click below to verify that the file on the server matches the original signature and hash.</p>
-              
               <button 
-                onClick={verifyIntegrity} 
-                disabled={verificationStatus === 'verifying'}
-                style={{
-                  padding: '10px 20px', backgroundColor: '#007bff', color: 'white', 
-                  border: 'none', borderRadius: '4px', cursor: 'pointer'
-                }}
+                type="submit" 
+                className="btn btn-primary"
+                disabled={!selectedFile || uploading}
               >
-                {verificationStatus === 'verifying' ? 'Verifying...' : 'Verify Integrity Now'}
+                {uploading ? (
+                  <>
+                    <span className="spinner" style={{ width: '1rem', height: '1rem' }}></span>
+                    Encrypting...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Upload
+                  </>
+                )}
               </button>
+            </form>
+          </div>
+        )}
 
-              {verificationStatus === 'verified' && verificationResult && (
-                <div style={{ marginTop: '15px', padding: '10px', borderRadius: '4px', backgroundColor: verificationResult.verified ? '#d4edda' : '#f8d7da', color: verificationResult.verified ? '#155724' : '#721c24' }}>
-                  <h4>Result: {verificationResult.verified ? 'Verified Secure' : 'Verification Failed'}</h4>
-                  <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
-                    <li><strong>Confidentiality Check:</strong> {verificationResult.isEncrypted ? 'Protected (AES-256 Encrypted)' : 'Not Encrypted'}</li>
-                    <li><strong>Signature Check (Integrity):</strong> {verificationResult.signatureValid ? 'Valid' : 'Invalid'}</li>
-                    <li><strong>Hash Check (Integrity):</strong> {verificationResult.hashMatch ? 'Match' : 'Mismatch'}</li>
-                    {verificationResult.isEncrypted && (
-                       <li><strong>Encryption Algorithm:</strong> {verificationResult.encryptionAlgorithm}</li>
-                    )}
-                  </ul>
-                </div>
+        {/* Files Table */}
+        <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Files</h2>
+          <span className="badge">{files.length} items</span>
+        </div>
+
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Uploaded By</th>
+                <th>Security</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {files.length === 0 ? (
+                <tr>
+                  <td colSpan="4">
+                    <div className="empty-state">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 1rem', opacity: 0.5 }}>
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <polyline points="13 2 13 9 20 9"/>
+                      </svg>
+                      <p>No files uploaded yet</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                files.map(file => (
+                  <tr key={file._id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                          <polyline points="13 2 13 9 20 9"/>
+                        </svg>
+                        <span style={{ fontWeight: '500' }}>{file.originalName}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="text-muted">{file.uploadedBy?.username || 'Unknown'}</span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <code className="text-xs font-mono" style={{ color: 'hsl(142 76% 50%)' }}>
+                          Sig: {file.digitalSignature?.substring(0, 12)}...
+                        </code>
+                        <code className="text-xs font-mono" style={{ color: 'hsl(38 92% 50%)' }}>
+                          Hash: {file.originalFileHash?.substring(0, 12)}...
+                        </code>
+                        <button 
+                          onClick={() => openSecurityModal(file)} 
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginTop: '0.25rem', justifyContent: 'flex-start', padding: '0.25rem 0.5rem', height: 'auto' }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                          </svg>
+                          View Details
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          onClick={() => handlePreview(file._id)} 
+                          className="btn btn-info btn-sm"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                          Preview
+                        </button>
+                        <button 
+                          onClick={() => handleDownload(file._id, file.originalName)} 
+                          className="btn btn-secondary btn-sm"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                          </svg>
+                          Download
+                        </button>
+                        {(role === 'Admin' || (role === 'Owner' && file.uploadedBy?._id === token.userId)) && (
+                          <button 
+                            onClick={() => handleDelete(file._id)} 
+                            className="btn btn-destructive btn-sm"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
+            </tbody>
+          </table>
+        </div>
+      </main>
+
+      {/* Security Modal */}
+      {showSecurityModal && fileToVerify && (
+        <div className="modal-overlay" onClick={closeSecurityModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Security Details</h3>
+                <p className="text-sm text-muted mt-1">{fileToVerify.originalName}</p>
+              </div>
+              <button className="modal-close" onClick={closeSecurityModal}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="security-data">
+                <div className="security-item">
+                  <div className="security-label">Digital Signature (RSA-SHA256)</div>
+                  <div className="security-value">{fileToVerify.digitalSignature}</div>
+                </div>
+
+                <div className="security-item">
+                  <div className="security-label">Original File Hash (SHA-256)</div>
+                  <div className="security-value">{fileToVerify.originalFileHash}</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid hsl(240 3.7% 15.9%)' }}>
+                <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Integrity Verification</h4>
+                <p className="text-sm text-muted mb-4">
+                  Verify that the file on the server matches the original signature and hash.
+                </p>
+
+                {verificationStatus === 'failed' && (
+                  <div style={{ 
+                    padding: '1rem', 
+                    backgroundColor: 'hsl(0 62.8% 10%)', 
+                    border: '1px solid hsl(0 62.8% 25%)', 
+                    borderRadius: '0.5rem',
+                    marginBottom: '1rem',
+                    color: 'hsl(0 62.8% 80%)'
+                  }}>
+                    <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Error:</strong>
+                    {verificationError}
+                  </div>
+                )}
+                
+                <button 
+                  onClick={verifyIntegrity} 
+                  disabled={verificationStatus === 'verifying'}
+                  className="btn btn-primary"
+                >
+                  {verificationStatus === 'verifying' ? (
+                    <>
+                      <span className="spinner" style={{ width: '1rem', height: '1rem' }}></span>
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                      Verify Integrity
+                    </>
+                  )}
+                </button>
+
+                {verificationStatus === 'verified' && verificationResult && (
+                  <div className={`verification-result ${verificationResult.verified ? 'verification-success' : 'verification-failed'}`}>
+                    <h4>
+                      {verificationResult.verified ? '✓ Verified Secure' : '✗ Verification Failed'}
+                    </h4>
+                    <ul className="verification-list">
+                      <li>
+                        <span className={verificationResult.isEncrypted ? 'check' : 'cross'}>
+                          {verificationResult.isEncrypted ? '✓' : '✗'}
+                        </span>
+                        <strong>Confidentiality:</strong> {verificationResult.isEncrypted ? 'AES-256 Encrypted' : 'Not Encrypted'}
+                      </li>
+                      <li>
+                        <span className={verificationResult.signatureValid ? 'check' : 'cross'}>
+                          {verificationResult.signatureValid ? '✓' : '✗'}
+                        </span>
+                        <strong>Signature:</strong> {verificationResult.signatureValid ? 'Valid' : 'Invalid'}
+                      </li>
+                      <li>
+                        <span className={verificationResult.hashMatch ? 'check' : 'cross'}>
+                          {verificationResult.hashMatch ? '✓' : '✗'}
+                        </span>
+                        <strong>Hash:</strong> {verificationResult.hashMatch ? 'Match' : 'Mismatch'}
+                      </li>
+                      {verificationResult.encryptionAlgorithm && (
+                        <li>
+                          <span className="check">✓</span>
+                          <strong>Algorithm:</strong> {verificationResult.encryptionAlgorithm}
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={{ marginTop: '20px', textAlign: 'right' }}>
-              <button onClick={closeSecurityModal} style={{ padding: '8px 16px' }}>Close</button>
+            <div className="modal-footer">
+              <button onClick={closeSecurityModal} className="btn btn-secondary">
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -313,108 +460,98 @@ function Dashboard({ token, role, logout }) {
 
       {/* Preview Modal */}
       {showPreviewModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '80%', maxWidth: '900px',
-            maxHeight: '90vh', overflowY: 'auto', position: 'relative'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h2 style={{ margin: 0 }}>
-                File Preview {previewData && `- ${previewData.filename}`}
-              </h2>
-              <button 
-                onClick={closePreviewModal} 
-                style={{ 
-                  background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', 
-                  padding: '5px 10px' 
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {previewLoading ? (
-              <div style={{ textAlign: 'center', padding: '50px' }}>
-                <div style={{ fontSize: '24px', marginBottom: '10px' }}>Loading...</div>
-                <p>Decrypting and encoding file...</p>
-              </div>
-            ) : previewData ? (
+        <div className="modal-overlay" onClick={closePreviewModal}>
+          <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
               <div>
-                {/* Encoding Info Bar */}
-                <div style={{ 
-                  backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '6px', 
-                  marginBottom: '15px', fontSize: '0.85em' 
-                }}>
-                  <strong>Encoding:</strong> {previewData.encoding.toUpperCase()} | 
-                  <strong> MIME Type:</strong> {previewData.mimeType} | 
-                  <strong> Size:</strong> {(previewData.size / 1024).toFixed(2)} KB
-                </div>
-
-                {/* QR Code & Security Data Section */}
-                <div style={{ 
-                  display: 'flex', gap: '20px', marginBottom: '15px', 
-                  flexWrap: 'wrap', backgroundColor: '#ffffff', padding: '15px', 
-                  borderRadius: '8px', color: '#000', border: '1px solid #000' 
-                }}>
-                  {/* QR Code */}
-                  <div style={{ textAlign: 'center', flex: '0 0 auto' }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Verification QR</h4>
-                    {previewData.qrCode && (
-                      <img 
-                        src={previewData.qrCode} 
-                        alt="Verification QR Code" 
-                        style={{ borderRadius: '4px', border: '2px solid #000' }}
-                      />
-                    )}
-                    <p style={{ fontSize: '0.75em', marginTop: '8px', color: '#333' }}>
-                      Scan to verify file integrity
-                    </p>
-                  </div>
-
-                  {/* Encoded Security Data */}
-                  <div style={{ flex: 1, minWidth: '300px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Encoded Security Data</h4>
-                    
-                    <div style={{ marginBottom: '10px' }}>
-                      <strong style={{ color: '#000' }}>SHA-256 Hash:</strong>
-                      <div style={{ 
-                        fontFamily: 'monospace', fontSize: '0.7em', backgroundColor: '#f5f5f5', 
-                        padding: '8px', borderRadius: '4px', wordBreak: 'break-all', marginTop: '4px',
-                        border: '1px solid #ccc', color: '#000'
-                      }}>
-                        {previewData.securityData?.hash}
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: '10px' }}>
-                      <strong style={{ color: '#000' }}>Digital Signature (Base64):</strong>
-                      <div style={{ 
-                        fontFamily: 'monospace', fontSize: '0.65em', backgroundColor: '#f5f5f5', 
-                        padding: '8px', borderRadius: '4px', wordBreak: 'break-all', marginTop: '4px',
-                        maxHeight: '60px', overflow: 'auto', border: '1px solid #ccc', color: '#000'
-                      }}>
-                        {previewData.securityData?.signature}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '15px', fontSize: '0.8em' }}>
-                      <span><strong style={{ color: '#000' }}>Encryption:</strong> {previewData.securityData?.encryption}</span>
-                      <span><strong style={{ color: '#000' }}>IV:</strong> {previewData.securityData?.iv?.substring(0, 16)}...</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* File Preview */}
-                <h4 style={{ margin: '10px 0' }}>File Content Preview</h4>
-                <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px', backgroundColor: '#fff' }}>
-                  {renderPreviewContent()}
-                </div>
+                <h3 className="modal-title">File Preview</h3>
+                {previewData && <p className="text-sm text-muted mt-1">{previewData.filename}</p>}
               </div>
-            ) : null}
+              <button className="modal-close" onClick={closePreviewModal}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              {previewLoading ? (
+                <div className="loading-overlay">
+                  <div className="spinner"></div>
+                  <p>Decrypting and loading preview...</p>
+                </div>
+              ) : previewError ? (
+                <div className="empty-state">
+                  <div style={{ 
+                    width: '64px', 
+                    height: '64px', 
+                    backgroundColor: 'hsl(0 62.8% 10%)', 
+                    borderRadius: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    margin: '0 auto 1rem',
+                    color: 'hsl(0 62.8% 60%)'
+                  }}>
+                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                     </svg>
+                  </div>
+                  <h3 className="text-destructive mb-2">Preview Failed</h3>
+                  <p className="text-muted" style={{ maxWidth: '400px', margin: '0 auto' }}>
+                    {previewError}
+                  </p>
+                  <button onClick={closePreviewModal} className="btn btn-secondary mt-4">
+                    Close Preview
+                  </button>
+                </div>
+              ) : previewData ? (
+                <>
+                  {/* Info Bar */}
+                  <div className="preview-info-bar">
+                    <span><strong>Encoding:</strong> {previewData.encoding?.toUpperCase()}</span>
+                    <span><strong>Type:</strong> {previewData.mimeType}</span>
+                    <span><strong>Size:</strong> {(previewData.size / 1024).toFixed(2)} KB</span>
+                  </div>
+
+                  {/* Security Grid */}
+                  <div className="preview-security-grid">
+                    {/* QR Code */}
+                    {previewData.qrCode && (
+                      <div className="qr-section">
+                        <h4>Verification QR</h4>
+                        <img src={previewData.qrCode} alt="Verification QR" width="120" />
+                        <p>Scan to verify integrity</p>
+                      </div>
+                    )}
+
+                    {/* Security Data */}
+                    <div className="security-data">
+                      <div className="security-item" style={{ padding: '0.75rem' }}>
+                        <div className="security-label">SHA-256 Hash</div>
+                        <div className="security-value" style={{ maxHeight: '50px' }}>{previewData.securityData?.hash}</div>
+                      </div>
+                      <div className="security-item" style={{ padding: '0.75rem' }}>
+                        <div className="security-label">Digital Signature</div>
+                        <div className="security-value" style={{ maxHeight: '50px' }}>{previewData.securityData?.signature?.substring(0, 100)}...</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                        <span className="badge badge-success">
+                          {previewData.securityData?.encryption}
+                        </span>
+                        <span className="text-xs text-muted font-mono">
+                          IV: {previewData.securityData?.iv?.substring(0, 16)}...
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Content Preview */}
+                  <h4 style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>Content Preview</h4>
+                  <div className="preview-content" style={{ padding: '1rem' }}>
+                    {renderPreviewContent()}
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
       )}
