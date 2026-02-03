@@ -73,7 +73,8 @@ router.post('/upload', authenticate, authorize(['Admin', 'Owner']), upload.singl
 
     // Step 8.1: Generate Hash of Original File (SHA-256)
     const originalFileBuffer = fs.readFileSync(req.file.path);
-    const hash = crypto.createHash('sha256').update(originalFileBuffer).digest('hex');
+    const salt = crypto.randomBytes(10).toString('hex'); // salt of length 10
+    const hash = crypto.createHash('sha256').update(originalFileBuffer).update(salt).digest('hex');
 
     // Step 8.2: Digital Signature Creation (Encrypt hash using sender's RSA private key)
     const sign = crypto.createSign('SHA256');
@@ -106,7 +107,8 @@ router.post('/upload', authenticate, authorize(['Admin', 'Owner']), upload.singl
       iv,
       path: encryptedPath,
       digitalSignature,
-      originalFileHash: hash
+      originalFileHash: hash,
+      salt: salt
     });
 
     await newFile.save();
@@ -228,7 +230,7 @@ router.post('/verify/:id', authenticate, async (req, res) => {
     const isVerified = verifier.verify(uploader.publicKey, file.digitalSignature, 'base64');
 
     // 5. Compare Hash
-    const currentHash = crypto.createHash('sha256').update(decryptedFileBuffer).digest('hex');
+    const currentHash = crypto.createHash('sha256').update(decryptedFileBuffer).update(file.salt).digest('hex');
     const isHashMatch = (currentHash === file.originalFileHash);
 
     res.json({
